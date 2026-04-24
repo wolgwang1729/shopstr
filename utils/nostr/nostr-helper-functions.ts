@@ -14,6 +14,8 @@ import {
   CommunityRelays,
   NostrEvent,
   ProductFormValues,
+  ReportReason,
+  ReportTag,
 } from "@/utils/types/types";
 import { ProductData } from "@/utils/parsers/product-parser-functions";
 import { Proof } from "@cashu/cashu-ts";
@@ -817,6 +819,95 @@ export async function publishSpendingHistoryEvent(
   } catch {
     return;
   }
+}
+
+/**
+ * Constructs NIP-56 report tags per https://github.com/nostr-protocol/nips/blob/master/56.md.
+ *
+ * For profile reports: emits a single ["p", pubkey, reason, relay?] tag.
+ * For listing reports: emits an ["a"|"e", ..., reason, relay?] tag plus a
+ * mandatory ["p", pubkey] tag (required by the spec on every report).
+ *
+ * @param target - The entity being reported.
+ * @param reason - One of the NIP-56 standard report types.
+ * @returns Tag tuples ready to be included in a kind 1984 EventTemplate.
+ * @throws {Error} If pubkey or eventId is empty.
+ */
+export function createNIP56ReportTags(
+  target:
+    | { type: "profile"; pubkey: string; relay?: string }
+    | { type: "listing"; eventId: string; pubkey: string; dTag?: string; relay?: string },
+  reason: ReportReason
+): ReportTag[] {
+  if (target.type === "profile") {
+    if (!target.pubkey) {
+      throw new Error("pubkey is required for profile reports");
+    }
+    return target.relay
+      ? [["p", target.pubkey, reason, target.relay]]
+      : [["p", target.pubkey, reason]];
+  }
+
+  if (!target.eventId) {
+    throw new Error("eventId is required for listing reports");
+  }
+  if (!target.pubkey) {
+    throw new Error("pubkey is required for listing reports (NIP-56 mandates a p tag)");
+  }
+
+  // For replaceable events like listings (kind 30402), including both an 'a' tag
+  // (for the listing coordinate) and an 'e' tag (for the specific event ID) 
+  // ensures maximum compatibility across different Nostr moderation clients.
+  if (target.dTag) {
+    const coordinate = `30402:${target.pubkey}:${target.dTag}`;
+    const aTag: ReportTag = target.relay
+      ? ["a", coordinate, reason, target.relay]
+      : ["a", coordinate, reason];
+    const eTag: ReportTag = target.relay
+      ? ["e", target.eventId, reason, target.relay]
+      : ["e", target.eventId, reason];
+
+    // NIP-56 mandates a p tag on every report. Including the reason on the p tag
+    // even for event reports is a best practice for identity-based indexing.
+    return [aTag, eTag, ["p", target.pubkey, reason]];
+  }
+
+  // Fallback to 'e' tag if coordinate info (dTag) is missing
+  const eTag: ReportTag = target.relay
+    ? ["e", target.eventId, reason, target.relay]
+    : ["e", target.eventId, reason];
+  // NIP-56 mandates a p tag on every report
+  return [eTag, ["p", target.pubkey, reason]];
+}
+
+/**
+ * Constructs a NIP-56 (kind 1984) report event template.
+ *
+ * @param target - The profile or listing being reported.
+ * @param reason - One of the NIP-56 standard report types.
+ * @param description - Optional user-provided description for the report.
+ * @returns An EventTemplate ready to be signed.
+ */
+export function createNIP56ReportEvent(
+  target:
+    | { type: "profile"; pubkey: string; relay?: string }
+    | { type: "listing"; eventId: string; pubkey: string; dTag?: string; relay?: string },
+  reason: ReportReason,
+  description?: string
+): EventTemplate {
+  const reportTags: ReportTag[] = createNIP56ReportTags(target, reason);
+  const tags: string[][] = [...reportTags];
+
+  if (description) {
+    tags.push(["alt", description]);
+  }
+
+  return {
+    kind: 1984,
+    content: description || "",
+    tags,
+    created_at: Math.floor(Date.now() / 1000),
+  };
 }
 
 export async function createOrUpdateCommunity(

@@ -280,3 +280,18 @@ declare global {
     webln: any;
   }
 }
+
+export type ReportReason =
+  | "nudity"
+  | "malware"
+  | "profanity"
+  | "illegal"
+  | "spam"
+  | "impersonation"
+  | "other";
+
+export type ReportTag =
+  | ["p", string, ReportReason, ...string[]]
+  | ["p", string]
+  | ["e", string, ReportReason, ...string[]]
+  | ["a", string, ReportReason, ...string[]];
