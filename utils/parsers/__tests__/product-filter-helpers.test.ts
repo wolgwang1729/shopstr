@@ -3,6 +3,8 @@ import {
   productSatisfiesLocationFilter,
   productSatisfiesSearchFilter,
   productSatisfiesAllFilters,
+  productIsValidListing,
+  BANNED_PUBKEYS,
 } from "../product-filter-helpers";
 import { ProductData } from "../product-parser-functions";
 
@@ -180,6 +182,39 @@ describe("product-filter-helpers", () => {
         selectedSearch: "bottle",
       };
       expect(productSatisfiesAllFilters(mockProduct, filters)).toBe(false);
+    });
+  });
+
+  describe("productIsValidListing", () => {
+    it("should return true for a valid product", () => {
+      expect(productIsValidListing(mockProduct)).toBe(true);
+    });
+
+    it("should return false if currency is missing", () => {
+      const invalidProduct = { ...mockProduct, currency: undefined };
+      expect(productIsValidListing(invalidProduct as any)).toBe(false);
+    });
+
+    it("should return false if images are empty", () => {
+      const invalidProduct = { ...mockProduct, images: [] };
+      expect(productIsValidListing(invalidProduct)).toBe(false);
+    });
+
+    it("should return false if there is a content warning", () => {
+      const invalidProduct = { ...mockProduct, contentWarning: true };
+      expect(productIsValidListing(invalidProduct)).toBe(false);
+    });
+
+    it("should return false if the pubkey is banned", () => {
+      const bannedPubkey = Array.from(BANNED_PUBKEYS)[0]!;
+      const invalidProduct = { ...mockProduct, pubkey: bannedPubkey };
+      expect(productIsValidListing(invalidProduct)).toBe(false);
+    });
+
+    it("should return true if the pubkey is banned but it is the current user", () => {
+      const bannedPubkey = Array.from(BANNED_PUBKEYS)[0]!;
+      const product = { ...mockProduct, pubkey: bannedPubkey };
+      expect(productIsValidListing(product, bannedPubkey)).toBe(true);
     });
   });
 });

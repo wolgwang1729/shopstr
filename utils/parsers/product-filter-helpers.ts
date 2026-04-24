@@ -119,6 +119,38 @@ export const productSatisfiesPriceFilter = (productData: ProductData) => {
 };
 
 /**
+ * Global blacklist of pubkeys that should be hidden from the marketplace.
+ */
+export const BANNED_PUBKEYS = new Set([
+  "3da2082b7aa5b76a8f0c134deab3f7848c3b5e3a3079c65947d88422b69c1755",
+]);
+
+/**
+ * Checks if a product is a valid listing and should be displayed.
+ * Enforces baseline moderation and data completeness rules.
+ * @param product - The product data to validate.
+ * @param currentUserPubkey - (Optional) The current user's pubkey, to bypass some filters.
+ * @returns boolean
+ */
+export const productIsValidListing = (
+  product: ProductData,
+  currentUserPubkey?: string
+) => {
+  if (!product.currency) return false;
+  if (product.images.length === 0) return false;
+  if (product.contentWarning) return false;
+
+  if (
+    BANNED_PUBKEYS.has(product.pubkey) &&
+    product.pubkey !== currentUserPubkey
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+/**
  * Orchestrates all individual filters for a product.
  */
 export const productSatisfiesAllFilters = (

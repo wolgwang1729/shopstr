@@ -17,7 +17,10 @@ import {
   SignerContext,
 } from "@/components/utility-components/nostr-context-provider";
 import { getListingSlug } from "@/utils/url-slugs";
-import { productSatisfiesAllFilters } from "@/utils/parsers/product-filter-helpers";
+import {
+  productSatisfiesAllFilters,
+  productIsValidListing,
+} from "@/utils/parsers/product-filter-helpers";
 
 const DisplayProducts = ({
   focusedPubkey,
@@ -142,21 +145,14 @@ const DisplayProducts = ({
 
     const filtered = productEvents.filter((product) => {
       if (focusedPubkey && product.pubkey !== focusedPubkey) return false;
+      if (!productIsValidListing(product, userPubkey)) return false;
+
       if (
         !productSatisfiesAllFilters(product, {
           selectedCategories,
           selectedLocation,
           selectedSearch,
         })
-      )
-        return false;
-      if (!product.currency) return false;
-      if (product.images.length === 0) return false;
-      if (product.contentWarning) return false;
-      if (
-        product.pubkey ===
-          "3da2082b7aa5b76a8f0c134deab3f7848c3b5e3a3079c65947d88422b69c1755" &&
-        userPubkey !== product.pubkey
       ) {
         return false;
       }
